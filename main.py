@@ -215,6 +215,20 @@ test_str = """
 """
 
 
+def clear_line(text):
+    regex_zero = r"\n^(\s)*$" ## clear пустые строчки
+    regex_fix = r'[-]+\n[-]+' # clear ---\n---
+    t = re.sub(regex_zero, "", text, 0, re.MULTILINE)
+    t = re.sub(regex_fix, "", t, 0, re.MULTILINE)
+    als = t.split('\n')
+    if len(als)<2:
+        return ""
+    elif als[0] != '':
+        return "\n".join(als[1:-1])
+    elif als[0] == '':
+        return "\n".join(als[2:-1])
+
+
 def convert_to_pagraph(text):
     def __start(contex):
         regex = r"\]\n[-]+"
@@ -227,10 +241,15 @@ def convert_to_pagraph(text):
         subst = "[/paragraph]\n["
         result = re.sub(regex, subst, contex, 0, re.MULTILINE)
         return result
-    return __stop(__start(text))
+    text = __stop(__start(text))
+    ## def firs and
+    #text.split('\n')[]
+    return text
+
 
 if __name__ == '__main__':
-    gr = GlobalRegistr()
+    gr= GlobalRegistr()
+
     parser = OneLevel(escape_html=False, newline="\n", install_defaults=False)
     ## install level one tags
     parser.install_default_formatters()
@@ -254,9 +273,9 @@ if __name__ == '__main__':
 
     parser.add_formatter('video', gr.video,standalone=True)
     parser.add_formatter('card', gr.card,standalone=True)
-
-
-
-    t = convert_to_pagraph(parser.format(test_str))
-
-    print(t)
+    #parser.add_formatter('count',TreeJson().generate,standalone=True)
+    parser.add_formatter('paragraph',gr.paragraph)
+    t_clear = clear_line(parser.format(test_str))
+    t_text_wraper = convert_to_pagraph(t_clear)
+    t = parser.format(t_text_wraper)
+    print(gr.generate(t))

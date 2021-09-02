@@ -1,12 +1,25 @@
-import  re
+import json
+import re
 
 
 class BaseGlobalRegistr:
+    """
+        Регистр данных
+        хранить структуру
+
+            - dict
+                -- key = индификатор обьекта
+                -- value = json данные для вставки
+
+    """
     _list_regist = {}
     _q = []
     count = 0
 
-    def __gen_count(self, obj, name) -> int:
+    def get_count(self, id: int):
+        return self._list_regist[id]
+
+    def __set_count(self, obj, name: str) -> int:
         self._list_regist[self.count] = (name, obj)
         self.count += 1
         return self.count - 1
@@ -24,7 +37,7 @@ class BaseGlobalRegistr:
             return None
 
     def _register(self, obj, name, childs: list = None):
-        id = self.__gen_count(obj, name)
+        id = self.__set_count(obj, name)
         if childs:
             childs.append(id)
             return self.__gen_index(childs)
@@ -37,48 +50,121 @@ class BaseGlobalRegistr:
         else:
             return self._register(obj, name)
 
+    def paragraph(self, tag_name: str, value: str, options: dict, parent, context):
+        obj = f"<ticket>{value}</ticket>"
+        name = tag_name
+        id = self.__set_count(obj, name)
+        return f"\n[count {id}]\n"
 
-class GlobalRegistr(BaseGlobalRegistr):
 
-    def spoiler(self, tag_name:str, value:str, options:dict, parent, context):
+class BaseMixTreeJson(BaseGlobalRegistr):
+    """
+        Отвечает за создания из синтаксической структуры  представления для wagtail
+    """
+    __tree_index = [
+
+    ]
+
+    def root_has_childs(self, id: int, count_list: list):
+        pass
+
+    def root_not_has_childs(self, id: int):
+        pass
+
+    def gen_root_node(self, count: id, child=None):
+        if child:
+            name, value = self.root_has_childs(count, child)
+        else:
+            name, value = self.root_not_has_childs(count)
+
+        self.__tree_index.append(
+            {
+                "name": name,
+                "value": value,
+            }
+        )
+
+    def gen_multi_stret(self, counts: list):
+        counts = [int(i) for i in counts]  # Преобразуем в инт
+        counts.reverse()  # Для того чтобы получить правельный порядок обьектов
+        root_ids = counts[0]
+        child_counts = counts[1:]  # удаляем родительсткий обьект
+        self.gen_root_node(
+            root_ids,
+            child_counts
+        )
+
+    def gen_one_stret(self, count: int):
+        self.gen_root_node(count)
+
+    def generate(self, text: str):
+        text_clear = re.sub(r'$\n', '', text, 0, re.MULTILINE)
+        regex = r"\[count (?P<ids>[^\]]+)"
+        result = re.findall(regex, text_clear, re.MULTILINE)
+        ### Генерируем верхнее ноды
+        for row in result:
+            counts = row.split(',')
+            if len(counts) > 1:
+                self.gen_multi_stret(counts)
+            else:
+                self.gen_one_stret(int(counts[0]))
+        return json.dumps(self.__tree_index)
+
+
+class MixTreeJson(BaseMixTreeJson):
+    ''''''
+    def root_has_childs(self, id: int, count_list: list):
+        return self.get_count(id)
+
+    def root_not_has_childs(self, id: int):
+        return self.get_count(id)
+
+
+class GlobalRegistr(MixTreeJson):
+    """ Отвичает за создания синтаксической структуры
+        Преобразует текст в синтаксическое дерево для создания json структуры
+    """
+
+    def spoiler(self, tag_name: str, value: str, options: dict, parent, context):
         text = ""
         for i in options:
             if i == "small":
                 pass
             else:
-                text += " "+i
-        return self.multi_reg(value,f"<spoiler>{text}</spoiler>","spoiler")
+                text += " " + i
+        return self.multi_reg(value, f"<spoiler>{text}</spoiler>", "spoiler")
 
-    def diff(self, tag_name:str, value:str, options:dict, parent, context):
-        i1,i2 = -1,-1
+    def diff(self, tag_name: str, value: str, options: dict, parent, context):
+        i1, i2 = -1, -1
         for i in options:
             if i == 'before':
                 pass
             elif i == 'before':
                 pass
             else:
-                if len(i.split(",")) ==2: i1,i2 = i.split(',')
+                if len(i.split(",")) == 2:
+                    i1, i2 = i.split(',')
                 else:
                     if i1 < 0:
                         i1 = i
                     elif i2 < 0:
                         i2 = i
 
-            return self.multi_reg('',f"<diff>{i1}--{i2}</diff>","diff")
+            return self.multi_reg('', f"<diff>{i1}--{i2}</diff>", "diff")
 
-    def vladiff(self,*args, **kwargs):
+    def vladiff(self, *args, **kwargs):
         return self.diff(*args, **kwargs)
 
-    def q(self,*args, **kwargs):
+    def q(self, *args, **kwargs):
         return self.spoiler(*args, **kwargs)
 
-    def cards(self,*args, **kwargs):
+    def cards(self, *args, **kwargs):
         return self.spoiler(*args, **kwargs)
 
-    def intro(self,*args, **kwargs):
+    def intro(self, *args, **kwargs):
         return self.spoiler(*args, **kwargs)
 
-    def image(self, tag_name:str, value:str, options:dict, parent, context):
+    def image(self, tag_name: str, value: str, options: dict, parent, context):
         """BB код [image]
 
         Примеры использования::
@@ -105,7 +191,7 @@ class GlobalRegistr(BaseGlobalRegistr):
 
         return self.multi_reg('', f"<diff>{align}--{link_3d}</diff>", "diff")
 
-    def images(self, tag_name:str, value:str, options:dict, parent, context):
+    def images(self, tag_name: str, value: str, options: dict, parent, context):
         if len(options) >= 1:
             id_list = ''.join(options)
             id_list = id_list.split(',')
@@ -113,8 +199,7 @@ class GlobalRegistr(BaseGlobalRegistr):
             return '\n'
         return self.multi_reg('', "<diff></diff>", "diff")
 
-
-    def audio(self, tag_name:str, value:str, options:dict, parent, context):
+    def audio(self, tag_name: str, value: str, options: dict, parent, context):
         """ВВ код [audio]
 
         Используется для вставки плеера аудиофайла. Например:
@@ -129,40 +214,37 @@ class GlobalRegistr(BaseGlobalRegistr):
         src = list(options.keys())[0]
         if src.isdecimal():
             pass
-           # from irk.uploads.models import Upload
-           # try:
-           #     obj = Upload.objects.get(id=src)
-           # except Upload.DoesNotExist:
-           #     return ''
-           # src = obj.file.url
-           # title = value if value else obj.title
+        # from irk.uploads.models import Upload
+        # try:
+        #     obj = Upload.objects.get(id=src)
+        # except Upload.DoesNotExist:
+        #     return ''
+        # src = obj.file.url
+        # title = value if value else obj.title
         elif not src.startswith(('http://', 'https://')):
             # относительный урл - от корня media
-            #src = settings.MEDIA_URL + src
+            # src = settings.MEDIA_URL + src
             pass
         return self.multi_reg(title, "<audio></audio>", "audio")
 
-
-    def h(self, tag_name:str, value:str, options:dict, parent, context):
+    def h(self, tag_name: str, value: str, options: dict, parent, context):
         return self.multi_reg('', f"<{tag_name}>{value}</{tag_name}>", tag_name)
 
-
-    def ticket(self, tag_name:str, value:str, options:dict, parent, context):
+    def ticket(self, tag_name: str, value: str, options: dict, parent, context):
         """BB код [ticket]"""
 
-        event:str = list(options)[0]
+        event: str = list(options)[0]
         if event.isdecimal():
-        #event = Event.objects.filter(pk=event_id).select_related('type').first()
+            # event = Event.objects.filter(pk=event_id).select_related('type').first()
             event_id = event
-        elif event.startswith(('http://', 'https://','www')):
+        elif event.startswith(('http://', 'https://', 'www')):
             url_split = event.split("/")
             event_id = url_split[-1] if url_split[-1].isdecimal() else url_split[-2]
         else:
             return ''
-        return self.multi_reg('',f"<ticket>{event_id}</ticket>",tag_name)
+        return self.multi_reg('', f"<ticket>{event_id}</ticket>", tag_name)
 
-
-    def ref(self, tag_name:str, value:str, options:dict, parent, context):
+    def ref(self, tag_name: str, value: str, options: dict, parent, context):
         """
         BB-код [ref <source> <href>]<content>[/ref] для вставки сноски в текст
         Параметры:
@@ -180,24 +262,22 @@ class GlobalRegistr(BaseGlobalRegistr):
             return ''
         args = (','.join([k for k in options.keys()])).split(',')
 
-
         if len(args) == 2:
             source = args[0]
             href = args[1]
-        elif len(args) == 1 :
+        elif len(args) == 1:
             source = args[0]
             href = None
         else:
             source = None
             href = None
 
-        return self.multi_reg('',f"<ticket>{source}</ticket>",tag_name)
+        return self.multi_reg('', f"<ticket>{source}</ticket>", tag_name)
 
-
-    def video(self, tag_name:str, value:str, options:dict, parent, context):
+    def video(self, tag_name: str, value: str, options: dict, parent, context):
         href = list(options.keys())
-        return self.multi_reg('',f"<ticket>{href}</ticket>",tag_name)
+        return self.multi_reg('', f"<ticket>{href}</ticket>", tag_name)
 
-    def card(self, tag_name:str, value:str, options:dict, parent, context):
+    def card(self, tag_name: str, value: str, options: dict, parent, context):
         href = list(options.keys())
-        return self.multi_reg('',f"<ticket>{href}</ticket>",tag_name)
+        return self.multi_reg('', f"<ticket>{href}</ticket>", tag_name)
