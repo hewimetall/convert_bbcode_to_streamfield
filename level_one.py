@@ -31,8 +31,8 @@ class OneLevel(Parser):
             tag = "ol" if list_type in css_opts else "ul"
             css = ' style="list-style-type:%s;"' % css_opts[list_type] if list_type in css_opts else ""
             return "<%s%s>%s</%s>" % (tag, css, value, tag)
-
         self.add_formatter("list", _render_list, transform_newlines=False, strip=True, swallow_trailing_newline=True)
+
         def _render_list_item(name, value, options, parent, context):
             if not parent or parent.tag_name != "list":
                 return "[*]%s<br />" % value
@@ -58,10 +58,17 @@ class OneLevel(Parser):
             # Only add the missing http:// if it looks like it starts with a domain name.
             if "://" not in href:
                 href = "http://" + href
-            return '<a href="%s" target="_blank" rel="noopener">%s</a>' % (href , value)
+            return '<a href="%s">%s</a>' % (href , value)
 
-        self.add_formatter("url", _render_url, replace_links=False, replace_cosmetic=False)
         self.add_formatter('email',self.email)
+        self.add_formatter('h2',self.h)
+        self.add_formatter('q',self.h)
+
+    def q(self, tag_name: str, value: str, options: dict, parent, context):
+        return f"<q>{value}</q>"
+
+    def h(self, tag_name: str, value: str, options: dict, parent, context):
+        return f"<{tag_name}>{value}</{tag_name}>"
 
     def email(self, name, value, options, parent, context):
         """BB код [email]"""

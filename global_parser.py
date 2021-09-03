@@ -1,6 +1,6 @@
 import json
 import re
-
+import uuid
 
 class BaseGlobalRegistr:
     """
@@ -77,10 +77,13 @@ class BaseMixTreeJson(BaseGlobalRegistr):
         else:
             name, value = self.root_not_has_childs(count)
 
+        #value['id'] = str(uuid.uuid4()) ## gen uniq uid for wagteil
+        if name != "paragraph":
+            return
         self.__tree_index.append(
             {
                 "name": name,
-                "value": value,
+                "value": json.dumps(value),
             }
         )
 
@@ -113,8 +116,15 @@ class BaseMixTreeJson(BaseGlobalRegistr):
 
 class MixTreeJson(BaseMixTreeJson):
     ''''''
+    white_list_perents = [
+        "cards",
+        "url"
+    ]
     def root_has_childs(self, id: int, count_list: list):
-        return self.get_count(id)
+        name, value  = self.get_count(id)
+        if name is self.white_list_perents:
+            pass
+        return
 
     def root_not_has_childs(self, id: int):
         return self.get_count(id)
@@ -124,6 +134,17 @@ class GlobalRegistr(MixTreeJson):
     """ Отвичает за создания синтаксической структуры
         Преобразует текст в синтаксическое дерево для создания json структуры
     """
+    def _check_image(self, image)->int:
+        return int(image)
+
+    def _check_file(self, id_file)->int:
+        return int(id_file)
+
+    def _rich_text(self,value)->str:
+        return value
+
+    def url(self, tag_name: str, value: str, options: dict, parent, context):
+        return tag_name
 
     def spoiler(self, tag_name: str, value: str, options: dict, parent, context):
         text = ""
@@ -136,11 +157,13 @@ class GlobalRegistr(MixTreeJson):
 
     def diff(self, tag_name: str, value: str, options: dict, parent, context):
         i1, i2 = -1, -1
+        after = ''
+        before = ''
         for i in options:
-            if i == 'before':
-                pass
+            if i == 'after':
+                after = options[i]
             elif i == 'before':
-                pass
+                before = options[i]
             else:
                 if len(i.split(",")) == 2:
                     i1, i2 = i.split(',')
@@ -149,20 +172,26 @@ class GlobalRegistr(MixTreeJson):
                         i1 = i
                     elif i2 < 0:
                         i2 = i
+            old = self._check_image(i1)
+            new = self._check_image(i2)
 
-            return self.multi_reg('', f"<diff>{i1}--{i2}</diff>", "diff")
+            return self.multi_reg('',{
+                    "after": after,
+                    "before":before,
+                    "old":old,
+                    "new":new
+            } , "diff")
 
     def vladiff(self, *args, **kwargs):
         return self.diff(*args, **kwargs)
 
-    def q(self, *args, **kwargs):
-        return self.spoiler(*args, **kwargs)
-
     def cards(self, *args, **kwargs):
         return self.spoiler(*args, **kwargs)
 
-    def intro(self, *args, **kwargs):
-        return self.spoiler(*args, **kwargs)
+    def intro(self, tag_name: str, value: str, options: dict, parent, context):
+        return self.multi_reg('', {
+            self._rich_text(value)
+        }, 'intro')
 
     def image(self, tag_name: str, value: str, options: dict, parent, context):
         """BB код [image]
@@ -189,7 +218,32 @@ class GlobalRegistr(MixTreeJson):
         except:
             align = 'center'
 
-        return self.multi_reg('', f"<diff>{align}--{link_3d}</diff>", "diff")
+        options = align
+        try:
+            stretch = options[3]
+            options += "," + stretch
+        except:
+            pass
+
+        image = self._check_image(pk)
+
+        if link_3d:
+            # !TODO 3d add logick if url
+            name = 'tour'
+            d = {
+              "id_image": {
+                "image": image,
+              },
+              "url": link_3d
+            }
+        else:
+            name = image
+            d = {
+            "image": image,
+            "options": options,
+        }
+
+        return self.multi_reg('', d, name)
 
     def images(self, tag_name: str, value: str, options: dict, parent, context):
         if len(options) >= 1:
@@ -197,11 +251,23 @@ class GlobalRegistr(MixTreeJson):
             id_list = id_list.split(',')
         elif len(options) < 1:
             return '\n'
-        return self.multi_reg('', "<diff></diff>", "diff")
+        images = []
+        for i in id_list:
+            image = {
+                "type": "image",
+                "value": {
+                    "image": i,
+                },
+                "id": str(uuid.uuid4())
+            }
+            images.append(image)
+        return self.multi_reg('',
+            images
+        , "gallery")
 
-    def audio(self, tag_name: str, value: str, options: dict, parent, context):
+    def file(self, tag_name: str, value: str, options: dict, parent, context):
         """ВВ код [audio]
-
+[{"type": "document", "value": {"docs": 2, "url": "test", "value": "setset"}, "id": "8fdd9233-44a0-4c0c-adf2-e7367d1fc214"}]
         Используется для вставки плеера аудиофайла. Например:
             [audio 1489]
             [audio img/site/uploads/2018/12/75b2b0ad4b7ee0a470240c8f8b091773e142f4a5.mp3]
@@ -213,7 +279,11 @@ class GlobalRegistr(MixTreeJson):
         title = value or ''
         src = list(options.keys())[0]
         if src.isdecimal():
-            pass
+            file_id = self._check_file(src)
+            d = {
+                "docs": file_id,
+            }
+
         # from irk.uploads.models import Upload
         # try:
         #     obj = Upload.objects.get(id=src)
@@ -224,25 +294,33 @@ class GlobalRegistr(MixTreeJson):
         elif not src.startswith(('http://', 'https://')):
             # относительный урл - от корня media
             # src = settings.MEDIA_URL + src
-            pass
-        return self.multi_reg(title, "<audio></audio>", "audio")
+            d = {
+                "url": src,
+            }
+        else:
+            return ''
+        d["value"] = value
+        return self.multi_reg('',d, "document")
 
-    def h(self, tag_name: str, value: str, options: dict, parent, context):
-        return self.multi_reg('', f"<{tag_name}>{value}</{tag_name}>", tag_name)
 
     def ticket(self, tag_name: str, value: str, options: dict, parent, context):
         """BB код [ticket]"""
 
         event: str = list(options)[0]
         if event.isdecimal():
-            # event = Event.objects.filter(pk=event_id).select_related('type').first()
-            event_id = event
+            d = {
+                "event_id": event,
+            }
         elif event.startswith(('http://', 'https://', 'www')):
             url_split = event.split("/")
             event_id = url_split[-1] if url_split[-1].isdecimal() else url_split[-2]
+            d = {
+                "event_id": event_id,
+                "url": event
+            }
         else:
             return ''
-        return self.multi_reg('', f"<ticket>{event_id}</ticket>", tag_name)
+        return self.multi_reg('', d, "ticket")
 
     def ref(self, tag_name: str, value: str, options: dict, parent, context):
         """
@@ -256,6 +334,7 @@ class GlobalRegistr(MixTreeJson):
             [ref]Джон Барлоу утверждает...[/ref]
             [ref IRK.RU]Джон Барлоу утверждает...[/ref]
             [ref IRK.RU http://irk.ru]Джон Барлоу утверждает...[/ref]
+          {
         """
 
         if not value:
@@ -271,12 +350,16 @@ class GlobalRegistr(MixTreeJson):
         else:
             source = None
             href = None
+        d ={
+            "source": source,
+            "url": href,
+            "value": value
+        },
+        return self.multi_reg('', d, 'ref')
 
-        return self.multi_reg('', f"<ticket>{source}</ticket>", tag_name)
-
-    def video(self, tag_name: str, value: str, options: dict, parent, context):
+    def ember(self, tag_name: str, value: str, options: dict, parent, context):
         href = list(options.keys())
-        return self.multi_reg('', f"<ticket>{href}</ticket>", tag_name)
+        return self.multi_reg('', href, "embed")
 
     def card(self, tag_name: str, value: str, options: dict, parent, context):
         href = list(options.keys())

@@ -181,39 +181,7 @@ E-mail: [email etalonkurs.ru@mail.ru]etalonkurs.ru@mail.ru[/email][/i]
 Сайт: [url https://irk.itstep.org/events/master-class-for-children-8-12-years-old-3d-modeling-of-the-character-of-the-game-minecraft?utm_source=irk.ru&utm_medium=article&utm_campaign=dod_09]irk.itstep.org[/url]
 Задать вопросы можно через WhatsApp: [url https://api.whatsapp.com/send?phone=79642624944]+7 964-262-49-44[/url].[/i]
 
-[spoiler small Подробно]
-*инормационные технологии
-**тридэ
-[spoiler small Подробно]
-*инормационные технологии
-**тридэ
-[/spoiler]
-
-[/spoiler]
-
-*инормационные технологии
-**тридэ
-
- 
-
-На правах рекламы
 """
-test_str = """
-         [audio img/site/uploads/2018/12/75b2b0ad4b7ee0a470240c8f8b091773e142f4a5.mp3] asd asd asd  asd [spoiler small Подробно] 
-         [/spoiler]
-         
-         
-         [url http://www.irk.ru/news/]Новости на IRK.ru[/url][h3]Комплексный подход[/h3]
-         Напишите нам на [email news@irk.ru]почту[/email]
-          [ticket xxx]
-[ticket https://www.irk.ru/afisha/cinema/20200204/48803/]  asd 
-   [ref wikipedia http://wikipedia.org]Джон Барлоу утверждает, что постиндустриальная экономика напрямую копирует устройство жизни.[/ref] 
-    [ref]Джон Барлоу утверждает, что постиндустриальная экономика напрямую копирует устройство жизни.[/ref] 
-  [file 123]   [ref wikipedia]Джон Барлоу утверждает, что постиндустриальная экономика напрямую копирует устройство жизни.[/ref] 
-  
-  [card https://twitter.com/tvoyirkutsk/status/559906582885310465]
-"""
-
 
 def clear_line(text):
     regex_zero = r"\n^(\s)*$" ## clear пустые строчки
@@ -242,8 +210,6 @@ def convert_to_pagraph(text):
         result = re.sub(regex, subst, contex, 0, re.MULTILINE)
         return result
     text = __stop(__start(text))
-    ## def firs and
-    #text.split('\n')[]
     return text
 
 
@@ -251,31 +217,36 @@ if __name__ == '__main__':
     gr= GlobalRegistr()
 
     parser = OneLevel(escape_html=False, newline="\n", install_defaults=False)
+    parser.install_default_formatters() # loads b ,i ,other
+
+    ## standolone tags
+    parser.add_formatter('vladiff', gr.vladiff, standalone=True) #  +
+    parser.add_formatter('diff', gr.diff, standalone=True) # +
+
+    parser.add_formatter('image', gr.image, standalone=True) # +
+    parser.add_formatter('images', gr.images, standalone=True) # +
+
+    parser.add_formatter('card', gr.ember,standalone=True) # +
+    parser.add_formatter('video', gr.ember,standalone=True) # +
+    parser.add_formatter('ticket', gr.ticket, standalone=True) # +
+
+    # tag requriments
+    parser.add_formatter('audio', gr.file,standalone=True) # +
+
     ## install level one tags
-    parser.install_default_formatters()
     parser.add_formatter('spoiler', gr.spoiler)
-    parser.add_formatter('vladiff', gr.vladiff,standalone=True)
-    parser.add_formatter('diff', gr.diff,standalone=True)
-    parser.add_formatter('q', gr.q)
-    parser.add_formatter('cards',gr.cards,escape_html=False)
-    parser.add_formatter('intro',gr.intro)
-    parser.add_formatter('image',gr.image, standalone=True)
-    parser.add_formatter('images',gr.images, standalone=True)
-    parser.add_formatter('audio',gr.audio,newline_closes=True)
-
-    parser.add_formatter('h2',gr.h)
-    parser.add_formatter('h3',gr.h)
-
-    parser.add_formatter('ticket',gr.ticket, standalone=True)
+    parser.add_formatter('intro', gr.intro) #+
 
     parser.add_formatter('ref', gr.ref)
-    parser.add_simple_formatter('file','',standalone=True )
+    parser.add_formatter("url", gr.url, replace_links=False, replace_cosmetic=False)
 
-    parser.add_formatter('video', gr.video,standalone=True)
-    parser.add_formatter('card', gr.card,standalone=True)
-    #parser.add_formatter('count',TreeJson().generate,standalone=True)
-    parser.add_formatter('paragraph',gr.paragraph)
-    t_clear = clear_line(parser.format(test_str))
+    parser.add_formatter('cards', gr.cards)
+    parser.add_formatter('paragraph', gr.paragraph)
+
+    # trach
+    parser.add_simple_formatter('file', '', standalone=True)
+
+    t_clear = clear_line(parser.format(text))
     t_text_wraper = convert_to_pagraph(t_clear)
     t = parser.format(t_text_wraper)
     print(gr.generate(t))
