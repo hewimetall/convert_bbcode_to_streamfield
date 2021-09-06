@@ -178,7 +178,8 @@ E-mail: [email etalonkurs.ru@mail.ru]etalonkurs.ru@mail.ru[/email][/i]
 [i][url https://irk.itstep.org/events/master-class-for-children-8-12-years-old-3d-modeling-of-the-character-of-the-game-minecraft?utm_source=irk.ru&utm_medium=article&utm_campaign=dod_09]Компьютерная Академия «ШАГ»[/url]
 Адрес: Советская, 58 к 3, 1-й этаж
 Телефон: [b]48-20-12[/b]
-Сайт: [url https://irk.itstep.org/events/master-class-for-children-8-12-years-old-3d-modeling-of-the-character-of-the-game-minecraft?utm_source=irk.ru&utm_medium=article&utm_campaign=dod_09]irk.itstep.org[/url]
+Сайт: [url https://irk.itstep.org/events/master-class-for-children-8-12-years-old-3d-modeling-of-the-character-of-the-game-minecraft?utm_source=irk.ru&utm_medium=article&utm_campaign=dod_09] [image 15143826]
+irk.itstep.org[/url]
 Задать вопросы можно через WhatsApp: [url https://api.whatsapp.com/send?phone=79642624944]+7 964-262-49-44[/url].[/i]
 
 """
@@ -234,14 +235,14 @@ if __name__ == '__main__':
     parser.add_formatter('audio', gr.file,standalone=True) # +
 
     ## install level one tags
-    parser.add_formatter('spoiler', gr.spoiler)
+    parser.add_formatter('spoiler', gr.spoiler)#+
     parser.add_formatter('intro', gr.intro) #+
 
-    parser.add_formatter('ref', gr.ref)
-    parser.add_formatter("url", gr.url, replace_links=False, replace_cosmetic=False)
+    parser.add_formatter('ref', gr.ref)#+?
+    parser.add_formatter("url", gr.url, replace_links=False, replace_cosmetic=False)#+?
 
-    parser.add_formatter('cards', gr.cards)
-    parser.add_formatter('paragraph', gr.paragraph)
+    parser.add_formatter('cards', gr.cards)#?-
+    parser.add_formatter('paragraph', gr.paragraph)#+?
 
     # trach
     parser.add_simple_formatter('file', '', standalone=True)

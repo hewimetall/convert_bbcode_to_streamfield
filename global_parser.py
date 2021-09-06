@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import uuid
 
@@ -51,9 +52,8 @@ class BaseGlobalRegistr:
             return self._register(obj, name)
 
     def paragraph(self, tag_name: str, value: str, options: dict, parent, context):
-        obj = f"<ticket>{value}</ticket>"
         name = tag_name
-        id = self.__set_count(obj, name)
+        id = self.__set_count(value, name)
         return f"\n[count {id}]\n"
 
 
@@ -77,23 +77,56 @@ class BaseMixTreeJson(BaseGlobalRegistr):
         else:
             name, value = self.root_not_has_childs(count)
 
-        #value['id'] = str(uuid.uuid4()) ## gen uniq uid for wagteil
-        if name != "paragraph":
-            return
-        self.__tree_index.append(
+        if isinstance(value,dict):
+            self.__tree_index.append(
+                {
+                    "type": name,
+                    "value": value,
+                    "id":str(uuid.uuid4())
+                }
+            )
+        elif isinstance(value,list):
+            """ Fix from gallary """
+            self.__tree_index.append(
+                {
+                    "type": name,
+                    "value": value,
+                    "id": str(uuid.uuid4())
+                }
+            )
+        elif isinstance(value,set):
+            self.__tree_index.append(
             {
-                "name": name,
-                "value": json.dumps(value),
+            "type": name,
+            "value": value.pop(),
+            "id": str(uuid.uuid4())
             }
-        )
+            )
+        elif isinstance(value,str):
+            self.__tree_index.append(
+            {
+            "type": name,
+            "value": value,
+            "id": str(uuid.uuid4())
+            }
+            )
+        else:
+            self.__tree_index.append(
+                {
+                    "type": name,
+                    "value": value[0],
+                    "id": str(uuid.uuid4())
+                }
+            )
 
     def gen_multi_stret(self, counts: list):
         counts = [int(i) for i in counts]  # Преобразуем в инт
         counts.reverse()  # Для того чтобы получить правельный порядок обьектов
-        root_ids = counts[0]
+        root_id = counts[0]
         child_counts = counts[1:]  # удаляем родительсткий обьект
+        # !TODO: добавить реализацию для вложений
         self.gen_root_node(
-            root_ids,
+            root_id,
             child_counts
         )
 
@@ -111,20 +144,17 @@ class BaseMixTreeJson(BaseGlobalRegistr):
                 self.gen_multi_stret(counts)
             else:
                 self.gen_one_stret(int(counts[0]))
-        return json.dumps(self.__tree_index)
+        return json.dumps(self._BaseMixTreeJson__tree_index,ensure_ascii=False)
 
 
 class MixTreeJson(BaseMixTreeJson):
-    ''''''
-    white_list_perents = [
-        "cards",
-        "url"
-    ]
+    ''' '''
+
     def root_has_childs(self, id: int, count_list: list):
-        name, value  = self.get_count(id)
-        if name is self.white_list_perents:
+        name, value = self.get_count(id)
+        if name == self.get_count(id):
             pass
-        return
+        return name, value
 
     def root_not_has_childs(self, id: int):
         return self.get_count(id)
@@ -134,6 +164,8 @@ class GlobalRegistr(MixTreeJson):
     """ Отвичает за создания синтаксической структуры
         Преобразует текст в синтаксическое дерево для создания json структуры
     """
+
+
     def _check_image(self, image)->int:
         return int(image)
 
@@ -143,17 +175,80 @@ class GlobalRegistr(MixTreeJson):
     def _rich_text(self,value)->str:
         return value
 
-    def url(self, tag_name: str, value: str, options: dict, parent, context):
-        return tag_name
+    def _none_block(self,value:str,tag:str):
+        """ Вызывается когда не может произвести перевод """
+        return "none_block", f"[{tag}]f{value}[/f{tag}]"
+    def _replace(self, data, replacements):
+        """
+        Given a list of 2-tuples (find, repl) this function performs all
+        replacements on the input and returns the result.
+        """
+        for find, repl in replacements:
+            data = data.replace(find, repl)
+        return data
 
-    def spoiler(self, tag_name: str, value: str, options: dict, parent, context):
+    def _render_url(self, options):
+            if len(options):
+                href = list(options.keys())[0]
+                REPLACE_ESCAPE = (
+                    ("&", "&amp;"),
+                    ("<", "&lt;"),
+                    (">", "&gt;"),
+                    ('"', "&quot;"),
+                    ("'", "&#39;"),
+                )
+                # Option values are not escaped for HTML output.
+                for find, repl in REPLACE_ESCAPE:
+                    href = href.replace(find, repl)
+            else:
+                href = ''
+            # Completely ignore javascript: and data: "links".
+            if re.sub(r"[^a-z0-9+]", "", href.lower().split(":", 1)[0]) in ("javascript", "data", "vbscript"):
+                return ""
+            # Only add the missing http:// if it looks like it starts with a domain name.
+            if "://" not in href:
+                href = "http://" + href
+
+            #'<a href="%s">%s</a>' % href , value
+            return href
+
+
+    def url (self, tag_name: str, value: str, options: dict, parent, context, is_root=None):
+        href = self._render_url(options)
+        regex = r"\[count\s(\d+)\]"
+        swap_url = re.findall(regex, value, re.MULTILINE)
+        if swap_url:
+            for i in swap_url:
+                child_name, child_value = self._list_regist[int(i)]
+                if child_name == "image":
+                    child_value['url'] = href
+                else:
+                    child_name, child_value = self._none_block(value, tag_name)
+            return self.multi_reg(value, child_value, child_name)
+        else:
+            return f'<a href="{href}">{value}</a>'
+
+    def spoiler(self, tag_name: str, value: str, options: dict, parent, context, is_root=None):
         text = ""
+        is_small = False
         for i in options:
             if i == "small":
-                pass
+                is_small = True
             else:
                 text += " " + i
-        return self.multi_reg(value, f"<spoiler>{text}</spoiler>", "spoiler")
+        if is_root:
+            d = {
+                'is_small':is_small,
+                'span_text':text,
+                'none_block':text
+            }
+        else:
+            d = {
+                'is_small': is_small,
+                'span_text': text,
+                'paragraph': self._rich_text(value)
+            }
+        return self.multi_reg(value, d, "spoiler")
 
     def diff(self, tag_name: str, value: str, options: dict, parent, context):
         i1, i2 = -1, -1
@@ -185,8 +280,9 @@ class GlobalRegistr(MixTreeJson):
     def vladiff(self, *args, **kwargs):
         return self.diff(*args, **kwargs)
 
-    def cards(self, *args, **kwargs):
-        return self.spoiler(*args, **kwargs)
+    def cards(self, tag_name: str, value: str, options: dict, parent, context):
+        name, d = self._none_block(value, tag_name)
+        return self.multi_reg(value, d, name)
 
     def intro(self, tag_name: str, value: str, options: dict, parent, context):
         return self.multi_reg('', {
@@ -232,14 +328,14 @@ class GlobalRegistr(MixTreeJson):
             name = 'tour'
             d = {
               "id_image": {
-                "image": image,
+                "image": int(image),
               },
               "url": link_3d
             }
         else:
-            name = image
+            name = 'image'
             d = {
-            "image": image,
+            "image": int(image),
             "options": options,
         }
 
@@ -256,7 +352,8 @@ class GlobalRegistr(MixTreeJson):
             image = {
                 "type": "image",
                 "value": {
-                    "image": i,
+                    "image": int(i),
+                    "options": ""
                 },
                 "id": str(uuid.uuid4())
             }
@@ -359,8 +456,26 @@ class GlobalRegistr(MixTreeJson):
 
     def ember(self, tag_name: str, value: str, options: dict, parent, context):
         href = list(options.keys())
-        return self.multi_reg('', href, "embed")
+
+        url = href[0]
+        url_base = url +"="+ options[url]
+        args_list = [url_base]
+        for i in href[1:]:
+            args_list.append( url + "=" + options[url] )
+        if len(args_list)>1:
+            url_all = "&".join(args_list)
+        elif options[url] != "":
+            url_all = url
+        else:
+            url_all = url_base
+        return self.multi_reg('', str(url_all), "embed")
 
     def card(self, tag_name: str, value: str, options: dict, parent, context):
         href = list(options.keys())
+        url = href[0]
+        url_base = url +"="+ options[url]
+        args_list = [url_base]
+        for i in href[1:]:
+            args_list.append( url + "=" + options[url] )
+        url_all = "&".join(args_list)
         return self.multi_reg('', f"<ticket>{href}</ticket>", tag_name)
