@@ -462,12 +462,8 @@ class GlobalRegistr(MixTreeJson):
         args_list = [url_base]
         for i in href[1:]:
             args_list.append( url + "=" + options[url] )
-        if len(args_list)>1:
-            url_all = "&".join(args_list)
-        elif options[url] != "":
-            url_all = url
-        else:
-            url_all = url_base
+
+        url_all = "&".join(args_list)
         return self.multi_reg('', str(url_all), "embed")
 
     def card(self, tag_name: str, value: str, options: dict, parent, context):
